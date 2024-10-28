@@ -239,7 +239,7 @@ class LocationManager(models.Manager):
         )
 
 
-def cache_location_graph():
+def cache_location_graph(location_id=None):
     """Cache the location graph as a dictionary of edges."""
     locations = Location.objects.filter(
         Q(parent__isnull=False) | Q(type='R'),
@@ -248,7 +248,8 @@ def cache_location_graph():
     graph = {}
     location_types = {}
     for location in locations:
-        cache.set(f"location_{location.id}", location, timeout=None)
+        if not location_id or location_id == location.id:
+            cache.set(f"location_{location.id}", location, timeout=None)
         parent_id = location.parent_id if location.parent_id else "root"
         if parent_id not in graph:
             graph[parent_id] = set()
@@ -310,8 +311,8 @@ def extend_allowed_locations(location_pks, strict=True, loc_types=None):
 
 
 # Function to update the cache when Location objects are modified
-def update_location_cache(sender, instance, **kwargs):
-    cache_location_graph()
+def update_location_cache(sender, instance, location_id=None, **kwargs):
+    cache_location_graph(location_id)
 
 
 class Location(core_models.VersionedModel, core_models.ExtendableModel):
@@ -661,11 +662,18 @@ def free_cache_post_user_district_save(sender, instance, created, **kwargs):
 
 
 @receiver(post_save, sender=Location)
-@receiver(post_delete, sender=Location)
 def location_changed(sender, instance, **kwargs):
     update_location_cache(sender, instance, **kwargs)
     free_cache_for_user()
+    
 
+@receiver(post_delete, sender=Location)
+def location_deleted(sender, instance, **kwargs):
+    cache.delete(f"location_{instance.id}")
+    update_location_cache(sender, instance, location_id=instance.id, **kwargs)
+    free_cache_for_user()
+
+    
 
 class OfficerVillage(core_models.VersionedModel):
     id = models.AutoField(db_column="OfficerVillageId", primary_key=True)
