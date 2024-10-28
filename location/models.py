@@ -665,7 +665,7 @@ def free_cache_post_user_district_save(sender, instance, created, **kwargs):
 def location_changed(sender, instance, **kwargs):
     update_location_cache(sender, instance, **kwargs)
     free_cache_for_user()
-    
+
 
 @receiver(post_delete, sender=Location)
 def location_deleted(sender, instance, **kwargs):
@@ -673,7 +673,7 @@ def location_deleted(sender, instance, **kwargs):
     update_location_cache(sender, instance, location_id=instance.id, **kwargs)
     free_cache_for_user()
 
-    
+
 
 class OfficerVillage(core_models.VersionedModel):
     id = models.AutoField(db_column="OfficerVillageId", primary_key=True)
