@@ -239,12 +239,17 @@ class LocationManager(models.Manager):
         )
 
 
-def cache_location_graph():
+def cache_location_graph(location_id=None):
     """Cache the location graph as a dictionary of edges."""
-    locations = Location.objects.filter(*filter_validity())
+    locations = Location.objects.filter(
+        Q(parent__isnull=False) | Q(type='R'),
+        *filter_validity(),
+    )
     graph = {}
     location_types = {}
     for location in locations:
+        if not location_id or location_id == location.id:
+            cache.set(f"location_{location.id}", location, timeout=None)
         parent_id = location.parent_id if location.parent_id else "root"
         if parent_id not in graph:
             graph[parent_id] = set()
@@ -306,8 +311,8 @@ def extend_allowed_locations(location_pks, strict=True, loc_types=None):
 
 
 # Function to update the cache when Location objects are modified
-def update_location_cache(sender, instance, **kwargs):
-    cache_location_graph()
+def update_location_cache(sender, instance, location_id=None, **kwargs):
+    cache_location_graph(location_id)
 
 
 class Location(core_models.VersionedModel, core_models.ExtendableModel):
@@ -586,12 +591,13 @@ class UserDistrict(core_models.VersionedModel):
         cachedata = cache.get(f"user_districts_{user.id}")
         districts = []
         if cachedata is None:
+            cache_district = cache.get("location_types")
+            if not cache_district:
+                cache_location_graph()
+                cache_district = cache.get("location_types")
             cachedata = []
             if user.is_superuser:
-                location_ids = Location.objects.filter(
-                    type="D", *filter_validity()
-                ).values_list("id", flat=True)
-                for loc in location_ids:
+                for loc in cache_district['D']:
                     cachedata.append([0, loc])
             elif not isinstance(user, core_models.InteractiveUser):
                 if isinstance(user, core_models.TechnicalUser):
@@ -607,19 +613,19 @@ class UserDistrict(core_models.VersionedModel):
                         *filter_validity(),
                         *filter_validity(prefix="location__"),
                     )
-                    .prefetch_related("location")
-                    .prefetch_related("location__parent")
                     .order_by("location__parent__code")
                     .order_by("location__code")
                 )
             for d in districts:
-                cachedata.append([d.id, d.location_id])
+                cachedata.append([d.id, d.location])
 
             cache.set(f"user_districts_{user.id}", cachedata)
 
         if not districts and cachedata:
             for d in cachedata:
-                districts.append(UserDistrict(id=d[0], user=user, location_id=d[1]))
+                location = cache.get(f"location_{d[1]}")
+                location.parent = cache.get(f"location_{location.parent_id}")
+                districts.append(UserDistrict(id=d[0], user=user, location=location))
 
         return districts
 
@@ -656,10 +662,17 @@ def free_cache_post_user_district_save(sender, instance, created, **kwargs):
 
 
 @receiver(post_save, sender=Location)
-@receiver(post_delete, sender=Location)
 def location_changed(sender, instance, **kwargs):
     update_location_cache(sender, instance, **kwargs)
     free_cache_for_user()
+
+
+@receiver(post_delete, sender=Location)
+def location_deleted(sender, instance, **kwargs):
+    cache.delete(f"location_{instance.id}")
+    update_location_cache(sender, instance, location_id=instance.id, **kwargs)
+    free_cache_for_user()
+
 
 
 class OfficerVillage(core_models.VersionedModel):
