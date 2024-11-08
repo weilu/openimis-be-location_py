@@ -671,7 +671,6 @@ def location_deleted(sender, instance, **kwargs):
     free_cache_for_user()
 
 
-
 class OfficerVillage(core_models.VersionedModel):
     id = models.AutoField(db_column="OfficerVillageId", primary_key=True)
     officer = models.ForeignKey(
