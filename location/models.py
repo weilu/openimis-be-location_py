@@ -262,6 +262,12 @@ def cache_location_graph(location_id=None):
     cache.set("location_types", location_types, timeout=None)
 
 
+def cache_location_graph_if_empty():
+    if cache.has_key("location_types") is None:
+        cache_location_graph()
+
+
+
 def extend_allowed_locations(location_pks, strict=True, loc_types=None):
     """
     Get underlying locations for given location PKs.
@@ -271,11 +277,8 @@ def extend_allowed_locations(location_pks, strict=True, loc_types=None):
         logger.error(
             f"extend_allowed_locations is expecting a list but received {location_pks}"
         )
+    cache_location_graph_if_empty()
     graph = cache.get("location_graph")
-    if not graph:
-        cache_location_graph()
-        graph = cache.get("location_graph")
-
     result_pks = set()
     to_visit = set(location_pks)
     visited = set()
@@ -591,10 +594,8 @@ class UserDistrict(core_models.VersionedModel):
         cachedata = cache.get(f"user_districts_{user.id}")
         districts = []
         if cachedata is None:
+            cache_location_graph_if_empty()
             cache_district = cache.get("location_types")
-            if not cache_district:
-                cache_location_graph()
-                cache_district = cache.get("location_types")
             cachedata = []
             if user.is_superuser:
                 for loc in cache_district['D']:
@@ -617,7 +618,7 @@ class UserDistrict(core_models.VersionedModel):
                     .order_by("location__code")
                 )
             for d in districts:
-                cachedata.append([d.id, d.location])
+                cachedata.append([d.id, d.location_id])
 
             cache.set(f"user_districts_{user.id}", cachedata)
 
