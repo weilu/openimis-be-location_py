@@ -124,8 +124,8 @@ class LocationTest(TestCase):
         cached = caches["location"].get(f"user_locations_{self.test_user._u.id}")
         self.assertIsNotNone(cached)
         districts = UserDistrict.get_user_districts(self.test_user)
-        self.assertIsNotNone(cached)
-        
+        self.assertIsNotNone(districts)
+
 
     def test_cache_invalidation(self):
         LocationManager().is_allowed(self.test_user, [])
