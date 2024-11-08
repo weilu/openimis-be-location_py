@@ -263,7 +263,7 @@ def cache_location_graph(location_id=None):
 
 
 def cache_location_graph_if_empty():
-    if cache.has_key("location_types") is None:
+    if not cache.has_key("location_types"):
         cache_location_graph()
 
 
