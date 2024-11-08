@@ -1,5 +1,3 @@
-from functools import reduce
-import django
 from django.core.cache import caches
 from django_redis.cache import RedisCache
 import uuid
@@ -71,7 +69,6 @@ class LocationManager(models.Manager):
             ),
         )
         return self.get_location_from_ids((parents), loc_type) if loc_type else parents
-
 
     def allowed(self, user_id, loc_types=["R", "D", "W", "V"], strict=True, qs=False):
         strict_sql = """
@@ -265,7 +262,6 @@ def cache_location_graph(location_id=None):
 def cache_location_graph_if_empty():
     if not cache.has_key("location_types"):
         cache_location_graph()
-
 
 
 def extend_allowed_locations(location_pks, strict=True, loc_types=None):
