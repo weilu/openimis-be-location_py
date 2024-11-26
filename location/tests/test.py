@@ -121,6 +121,18 @@ class LocationTest(TestCase):
         districts = UserDistrict.get_user_districts(self.test_user)
         self.assertIsNotNone(districts)
 
+    def test_allowed_location_excludes_invalid(self):
+        invalid_village = create_test_village({'name': 'Invalid Vilalge', 'code': 'IV2020'})
+        invalid_village.validity_to = '2020-02-20'
+        invalid_village.parent = self.test_village.parent
+        invalid_village.save()
+
+        allowed = LocationManager().allowed(
+            self.test_user._u.id, loc_types=["V"]
+        )
+        self.assertEqual(len(allowed), 1)
+        self.assertEqual(allowed.first().id, self.test_village.id)
+
     def test_cache_invalidation(self):
         LocationManager().is_allowed(self.test_user, [])
         cached = caches["location"].get(f"user_locations_{self.test_user._u.id}")
