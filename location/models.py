@@ -105,6 +105,7 @@ class LocationManager(models.Manager):
                 "tblLocations"  child
                 INNER JOIN CTE_PARENTS leaf
                     ON child."ParentLocationId" = leaf."LocationId"
+            WHERE child."ValidityTo" is NULL
             )
             SELECT DISTINCT "LocationId" FROM CTE_PARENTS WHERE "LocationType" in ('{"','".join(loc_types)}')
         """
