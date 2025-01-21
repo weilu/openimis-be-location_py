@@ -105,6 +105,13 @@ class LocationTest(TestCase):
             ),
             "is_allowed function is not working as supposed",
         )
+        # same but with cache
+        self.assertTrue(
+            LocationManager().is_allowed(
+                self.test_user, [self.test_village.parent.parent.id]
+            ),
+            "is_allowed function is not working as supposed",
+        )
 
         allowed = LocationManager().allowed(
             self.test_user._u.id, loc_types=["R", "D", "W"]
