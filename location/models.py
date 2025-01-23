@@ -660,7 +660,7 @@ class UserDistrict(core_models.VersionedModel):
 
 @receiver(post_save, sender=UserDistrict)
 @receiver(post_delete, sender=UserDistrict)
-def free_cache_post_user_district_save(sender, instance, created, **kwargs):
+def free_cache_post_user_district_save(sender, instance, **kwargs):
     free_cache_for_user(instance.user_id)
 
 
