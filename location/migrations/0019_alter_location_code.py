@@ -14,46 +14,66 @@ DEPENDENT_VIEWS = [
     "uvwNumberFeedbackSent", "uvwNumberInsureeAcquired", "uvwNumberOfInsuredHouseholds",
     "uvwNumberPolicyRenewed", "uvwNumberPolicySold", "uvwOverallAssessment", "uvwPopulation",
     "uvwPremiumCollection", "uvwServiceExpenditures", "uvwServiceUtilization", "uvwVisit",
-    "uvwpremiumcollection", "tblDistricts", "tblRegions", "tblVillages", "tblWards",
+    "tblDistricts", "tblRegions", "tblVillages", "tblWards",
 ]
 
 view_definitions = {}
 
 
 def extract_and_drop_views(apps, schema_editor):
-    # Extract
-    with connection.cursor() as cursor:
-        global view_definitions
+    if connection.vendor == 'postgresql':
+        _extract_postgresql_views()
+        _drop_postgresql_views()
+    elif connection.vendor == 'microsoft':
+        _extract_mssql_views()
+        _drop_mssql_views()
 
-        if connection.vendor == 'postgresql':
-            query = """
-                SELECT viewname, definition
-                FROM pg_views
-                WHERE schemaname = 'public' AND viewname IN %s;
-            """
-            cursor.execute(query, (tuple(DEPENDENT_VIEWS),))
-            for viewname, viewdef in cursor.fetchall():
-                view_definitions[viewname] = f'CREATE OR REPLACE VIEW "public"."{viewname}" AS {viewdef}'
 
-        elif connection.vendor == 'microsoft':
-            for view in DEPENDENT_VIEWS:
-                query = f"SELECT OBJECT_DEFINITION(OBJECT_ID('{view}'))"
-                cursor.execute(query)
-                result = cursor.fetchone()
-                if result and result[0]:
-                    view_definitions[view] = result[0]
-    # Drop
+def _extract_postgresql_views():
+    global view_definitions
     with connection.cursor() as cursor:
-        if connection.vendor == 'postgresql':
-            for view in DEPENDENT_VIEWS:
-                cursor.execute(f'DROP VIEW IF EXISTS "public"."{view}"')
-        elif connection.vendor == 'microsoft':
-            for view in DEPENDENT_VIEWS:
-                cursor.execute(f"IF OBJECT_ID('{view}', 'V') IS NOT NULL DROP VIEW {view};")
+        query = """
+            SELECT viewname, definition
+            FROM pg_views
+            WHERE schemaname = 'public' AND viewname IN %s;
+        """
+        cursor.execute(query, (tuple(DEPENDENT_VIEWS),))
+        for name, definition in cursor.fetchall():
+            view_definitions[name] = f'CREATE OR REPLACE VIEW "public"."{name}" AS {definition}'
+
+
+def _drop_postgresql_views():
+    with connection.cursor() as cursor:
+        for view in DEPENDENT_VIEWS:
+            cursor.execute(f'DROP VIEW IF EXISTS "public"."{view}" CASCADE')
+
+
+def _extract_mssql_views():
+    global view_definitions
+    with connection.cursor() as cursor:
+        for view in DEPENDENT_VIEWS:
+            qualified_view_name = _get_mssql_view_name(view)
+            query = f"SELECT OBJECT_DEFINITION(OBJECT_ID('{qualified_view_name}'))"
+            cursor.execute(query)
+            result = cursor.fetchone()
+            if result and result[0]:
+                view_definitions[view] = result[0]
+            else:
+                raise RuntimeError(f'{view} not found using query {query}')
+
+def _drop_mssql_views():
+    with connection.cursor() as cursor:
+        for view in DEPENDENT_VIEWS:
+            qualified_view_name = _get_mssql_view_name(view)
+            cursor.execute(f"IF OBJECT_ID('{qualified_view_name}', 'V') IS NOT NULL DROP VIEW {qualified_view_name};")
+
+
+def _get_mssql_view_name(view_name):
+    schema = "dbo" if view_name.startswith("tbl") or view_name == 'uvwLocations' else "dw"
+    return f"{schema}.{view_name}"
 
 
 def recreate_views(apps, schema_editor):
-    global view_definitions
     with connection.cursor() as cursor:
         for view_name in reversed(DEPENDENT_VIEWS):
             cursor.execute(view_definitions[view_name])
