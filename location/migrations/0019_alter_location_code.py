@@ -90,7 +90,7 @@ class Migration(migrations.Migration):
         migrations.AlterField(
             model_name='location',
             name='code',
-            field=models.CharField(blank=True, db_column='LocationCode', max_length=12, null=True),
+            field=models.CharField(blank=True, db_column='LocationCode', max_length=50, null=True),
         ),
         migrations.RunPython(recreate_views, reverse_code=extract_and_drop_views),
     ]
